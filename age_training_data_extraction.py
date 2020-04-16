@@ -1,6 +1,6 @@
 from pyspark import SparkContext, SparkConf
 from pyspark.sql import SparkSession
-
+from datetime import datetime
 import os
 import shutil
 
@@ -22,9 +22,11 @@ profile_set = {
     "90-99": 7,
     "100": 7
 }
+start_date = datetime(2020, 1, 25)
 
 def map_func(tokens):
-    date = tokens[7]
+    date = datetime.strptime(str(tokens[7]), "%Y-%m-%d")
+    delta = date - start_date
     district = geocode_map[tokens[5]]
     age = tokens[2]
     age_id = -1
@@ -35,7 +37,7 @@ def map_func(tokens):
     else:
         age_id = 7
 
-    return ((date, district, age_id), 1)
+    return ((delta.days, district, age_id), 1)
 
 directory_path = "age_training_data_extracted"
 if (os.path.exists(directory_path)): shutil.rmtree(directory_path)
