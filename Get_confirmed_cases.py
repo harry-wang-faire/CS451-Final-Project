@@ -2,6 +2,7 @@ from pyspark import SparkContext, SparkConf
 from pyspark.sql import SparkSession, Row, SQLContext
 from pyspark.ml.regression import GeneralizedLinearRegression
 from pyspark.ml.linalg import DenseVector
+import numpy as np
 
 import os
 import shutil
@@ -9,7 +10,7 @@ from datetime import datetime
 
 start_date = datetime(2020,3,15)
 input_data_start_date = datetime(2020,1,22)
-col_to_remove = int((start_date - input_data_start_date).days) + 4 # 4 non-case column
+col_to_remove = int((start_date - input_data_start_date).days) + 4 - 1 # 4 non-case column
 
 input_path = "data/time_series_covid19_confirmed_global.csv"
 output_path = "cases"
@@ -28,23 +29,6 @@ spark = SparkSession.builder \
     .getOrCreate()
 
 
-def getCases(data):
-    # to DF for training
-    mdata = sc.parallelize(data[1]) \
-    .map(lambda x : Row(label = x[2], features = DenseVector([x[0]])))
-
-    dataDf = sqlContext.createDataFrame(mdata)
-    (trainingData, testData) = dataDf.randomSplit([0.7, 0.3])
-
-    glr = GeneralizedLinearRegression(family="gaussian", maxIter=10, regParam=0.3)
-    model = glr.fit(trainingData)
-
-    predictions = model.transform(testData)
-    output = predictions.select("prediction", "label", "features").take(2)
-    return (data[0], output)
-
-
-
 df = spark.read.option("header","true").csv(input_path) \
                 .withColumnRenamed('Province/State', 'province')
 
@@ -55,6 +39,9 @@ data = df.filter(df.province.isin(geocode_map.keys())) \
         .collect()
 
 for d in data:
-    cases = sc.parallelize(d[1]).zipWithIndex().repartition(1)
-    # (number of cases, number of days since start day)
+    cases = sc.parallelize(list(zip(d[1][1:], np.diff(d[1])))) \
+    .zipWithIndex() \
+    .map(lambda x: (x[0][0], x[0][1], x[1])) \
+    .repartition(1)
+    # (number of cases, number of new cases, number of days since start day)
     cases.saveAsTextFile(output_path + "/" + d[0][1])

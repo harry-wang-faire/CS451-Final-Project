@@ -8,6 +8,7 @@ import shutil
 from datetime import datetime
 
 # run Get_confirmed_cases.py first
+# train on daily new case data
 
 predict_day = datetime(2020,4,30)
 start_date = datetime(2020,3,15)
@@ -24,8 +25,8 @@ spark = SparkSession.builder \
     .config("spark.some.config.option", "some-value") \
     .getOrCreate()
 
-def trainbyprovince(trainingData, testData):
-    glr = GeneralizedLinearRegression(family="gaussian", maxIter=10, regParam=0.3)
+def train(trainingData, testData):
+    glr = GeneralizedLinearRegression(family="gaussian", maxIter=10, regParam=0.2)
     model = glr.fit(trainingData)
 
     predictions = model.transform(testData)
@@ -41,7 +42,8 @@ for dir in os.walk(input_folder):
 
     df = sc.textFile(input_path)
     # we want to run the model on each province
-    data = df.map(lambda x: [int(y) for y in x.strip('()').split(",")])
+    data = df.map(lambda x: [int(y) for y in x.strip('()').split(",")]) \
+            .map(lambda x : (x[1], x[2]))
 
     trainingData = sc.parallelize(data.take(data.count() - 2)) \
         .map(lambda x : Row(label = x[0], features = DenseVector([x[1]]))) \
@@ -51,7 +53,7 @@ for dir in os.walk(input_folder):
         .map(lambda x : Row(label = x[1], features = DenseVector([x[0]]))) \
         .toDF()
 
-    result = trainbyprovince(trainingData, testData)
+    result = train(trainingData, testData)
 
     f = open(output_path, 'w')
     f.write(str(result))
