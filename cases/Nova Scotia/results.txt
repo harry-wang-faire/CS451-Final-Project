@@ -1,1 +1,1 @@
-[Row(prediction=36.44833652671391, label=43, features=DenseVector([34.0])), Row(prediction=35.39817641664395, label=27, features=DenseVector([33.0]))]
+[Row(prediction=35.88201112266017, label=27, features=DenseVector([33.0])), Row(prediction=34.81196762993673, label=30, features=DenseVector([32.0]))]
