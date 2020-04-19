@@ -7,13 +7,14 @@ import os
 import shutil
 from datetime import datetime
 
+# run Get_confirmed_cases.py first
 
 predict_day = datetime(2020,4,30)
 start_date = datetime(2020,3,15)
 
-input_path = "confirmed_cases_data/part-00000"
-output_path = "results.txt"
-# if (os.path.exists(output_path)): shutil.rmtree(output_path)
+input_folder = "cases"
+file_name = "/part-00000"
+output_file = "/results.txt"
 
 sc = SparkContext.getOrCreate(SparkConf().setMaster("local[*]"))
 sqlContext = SQLContext(sc)
@@ -23,37 +24,35 @@ spark = SparkSession.builder \
     .config("spark.some.config.option", "some-value") \
     .getOrCreate()
 
-
-def trainbyprovince(data):
-    # to DF for training
-    mdata = sc.parallelize(data[1]) \
-    .map(lambda x : Row(label = x[2], features = DenseVector([x[0]])))
-
-    dataDf = sqlContext.createDataFrame(mdata)
-    (trainingData, testData) = dataDf.randomSplit([0.7, 0.3])
-
+def trainbyprovince(trainingData, testData):
     glr = GeneralizedLinearRegression(family="gaussian", maxIter=10, regParam=0.3)
     model = glr.fit(trainingData)
 
     predictions = model.transform(testData)
     output = predictions.select("prediction", "label", "features").take(2)
-    return (data[0], output)
+    return output
+
+for dir in os.walk(input_folder):
+    if dir[0] == input_folder:
+        continue
+    input_path = dir[0] + file_name
+    output_path = dir[0] + output_file
 
 
+    df = sc.textFile(input_path)
+    # we want to run the model on each province
+    data = df.map(lambda x: [int(y) for y in x.strip('()').split(",")])
 
-df = sc.textFile(input_path)
-# we want to run the model on each province
-provinces = df.map(lambda x: [int(y) for y in x.strip('()').split(",")]) \
-                .groupBy(lambda x : x[1]) \
-                .collect()
+    trainingData = sc.parallelize(data.take(data.count() - 2)) \
+        .map(lambda x : Row(label = x[0], features = DenseVector([x[1]]))) \
+        .toDF()
 
-f = open(output_path, 'w')
-for p in provinces:
-    result = trainbyprovince(p)
-    f.write(str(result) + "\n")
+    testData = sc.parallelize(data.map(lambda (a, b): (b, a)).top(2)) \
+        .map(lambda x : Row(label = x[1], features = DenseVector([x[0]]))) \
+        .toDF()
 
-f.close()
+    result = trainbyprovince(trainingData, testData)
 
-# d = trainbyprovince(predicts.take(1)[0])
-# print(d)
-# predicts.saveAsTextFile(output_path)
+    f = open(output_path, 'w')
+    f.write(str(result))
+    f.close()
