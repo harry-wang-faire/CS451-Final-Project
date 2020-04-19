@@ -1,0 +1,1 @@
+[Row(prediction=695.6371145672599, label=557, features=DenseVector([34.0])), Row(prediction=673.4232681350721, label=616, features=DenseVector([33.0]))]
