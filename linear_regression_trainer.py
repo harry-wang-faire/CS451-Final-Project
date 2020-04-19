@@ -22,7 +22,7 @@ spark = SparkSession.builder \
     .config("spark.some.config.option", "some-value") \
     .getOrCreate()
 
-covid_data_directory = 'covid19/result.csv/part-*'
+covid_data_directory = 'aggregated_data/result.csv/part-*'
 
 covid_data = sqlContext.read.format('com.databricks.spark.csv')\
   .options(header='true', inferschema='true').load(covid_data_directory)
@@ -30,17 +30,19 @@ covid_data = sqlContext.read.format('com.databricks.spark.csv')\
 train_df = covid_data.filter(covid_data.date < 27)
 test_df = covid_data.filter(covid_data.date >= 27)
 
-vectorAssembler = VectorAssembler(inputCols=['geo_code','date','numtested'], outputCol = 'features')
+# vectorAssembler = VectorAssembler(inputCols=['geo_code','date'], outputCol = 'features')
+vectorAssembler = VectorAssembler(inputCols=['geo_code','date','numtested', 'median_age_Scaled', 'population_Scaled'], outputCol = 'features')
 
 train_df = vectorAssembler.transform(train_df)
 train_df = train_df.select(['features', 'numconfirmed'])
+train_df.show()
 
 test_df = vectorAssembler.transform(test_df)
 test_df = test_df.select(['features', 'numconfirmed'])
 
 def flatten_features(x):
   f = x.features
-  return (x.numconfirmed, int(x.prediction), name_map.get(int(f[0])), int(f[1]), int(f[2]))
+  return (x.numconfirmed, int(x.prediction), name_map.get(int(f[0])), int(f[1]), int(f[2]), float(f[3]), float(f[4]))
 
 lr = LinearRegression(featuresCol = 'features', labelCol='numconfirmed', maxIter=10, regParam=0.3, elasticNetParam=0.8)
 lr_model = lr.fit(train_df)
@@ -55,6 +57,6 @@ predictions = lr_model.transform(test_df)
 predictions = predictions.rdd.map(flatten_features)
 
 # convert rdd to dataframe
-df = spark.createDataFrame(predictions, ['numconfirmed', 'prediction', 'province', 'days', 'numtested'])
+df = spark.createDataFrame(predictions, ['numconfirmed', 'prediction', 'province', 'date', 'numtested', 'median_age_scaled', 'population_scaled'])
 df.write.csv(directory_path, header=True)
 

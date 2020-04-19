@@ -22,7 +22,7 @@ spark = SparkSession.builder \
     .config("spark.some.config.option", "some-value") \
     .getOrCreate()
 
-covid_data_directory = 'covid19/result.csv/part-*'
+covid_data_directory = 'aggregated_data/result.csv/part-*'
 
 covid_data = sqlContext.read.format('com.databricks.spark.csv')\
   .options(header='true', inferschema='true').load(covid_data_directory)
@@ -30,12 +30,15 @@ covid_data = sqlContext.read.format('com.databricks.spark.csv')\
 train_df = covid_data.filter(covid_data.date < 27)
 test_df = covid_data.filter(covid_data.date >= 27)
 
-vectorAssembler = VectorAssembler(inputCols=['geo_code','date','numtested'], outputCol = 'features')
+# train_df = train_df.select(['features', 'numconfirmed'])
+vectorAssembler = VectorAssembler(inputCols=['geo_code','date', 'numtested'], outputCol = 'features')
 
 train_df = vectorAssembler.transform(train_df)
+train_df.show()
 train_df = train_df.select(['features', 'numconfirmed'])
 
 test_df = vectorAssembler.transform(test_df)
+test_df.show()
 test_df = test_df.select(['features', 'numconfirmed'])
 
 
@@ -54,10 +57,7 @@ rmse = gbt_evaluator.evaluate(predictions)
 print("Root Mean Squared Error (RMSE) on test data = %g" % rmse)
 
 predictions = predictions.rdd.map(flatten_features)
-# withColumn("details", " ".join(str(x) for x in predictions["features"]))
 
-# convert rdd to dataframe
-# predictions.write.format("csv").save(directory_path)
-df = spark.createDataFrame(predictions, ['numconfirmed', 'prediction', 'province', 'days', 'numtested'])
+df = spark.createDataFrame(predictions, ['numconfirmed', 'prediction', 'province', 'date', 'numtested'])
 df.write.csv(directory_path, header=True)
 
