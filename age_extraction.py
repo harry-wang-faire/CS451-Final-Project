@@ -56,4 +56,5 @@ age_data = df.rdd.map(list).filter(lambda list: list[8] in profile_set) \
             .map(lambda tuple: (tuple[0][0], tuple[0][1], tuple[1])) 
 
 
-age_data.saveAsTextFile(directory_path)
+df = spark.createDataFrame(age_data)
+df.write.format("csv").save(directory_path)

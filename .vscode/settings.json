@@ -1,0 +1,7 @@
+{
+  "python.autoComplete.extraPaths": [
+    "${env:SPARK_HOME}/python",
+    "${env:SPARK_HOME}/python/pyspark"
+  ],
+  "python.pythonPath": "/usr/local/opt/python/bin/python3.7"
+}

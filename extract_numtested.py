@@ -1,5 +1,6 @@
 from pyspark import SparkContext, SparkConf
-from pyspark.sql import SparkSession
+from pyspark.sql import SparkSession, SQLContext
+
 
 import os
 import shutil
@@ -28,14 +29,10 @@ spark = SparkSession.builder \
     .getOrCreate()
     
 
-df = spark.read.option("header","true").csv("data/testing.csv")
+df = spark.read.option("header","false").csv("data/testing.csv")
 # text_file = sc.textFile("data/2016Population.csv")
 training_data = df.rdd.map(list).map(map_func)
 
-# age_data = df.rdd.map(list).map(filter_age_func) \
-#             .reduceByKey(lambda a, b: a + b) \
-#             .sortBy(lambda tuple: tuple[0]) \
-#             .map(lambda tuple: (tuple[0][0], tuple[0][1], tuple[1])) 
-
-
-training_data.saveAsTextFile(directory_path)
+# convert rdd to dataframe
+df = spark.createDataFrame(training_data)
+df.write.format("csv").save(directory_path)
