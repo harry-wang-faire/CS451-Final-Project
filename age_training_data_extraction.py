@@ -64,4 +64,5 @@ training_data = df.rdd.map(list).filter(lambda tokens: tokens[6] == "Canada" and
 #             .map(lambda tuple: (tuple[0][0], tuple[0][1], tuple[1])) 
 
 
-training_data.saveAsTextFile(directory_path)
+df = spark.createDataFrame(training_data, ['date', 'geo_code', 'category', 'count'])
+df.write.csv(directory_path + "age.csv", header=True)
