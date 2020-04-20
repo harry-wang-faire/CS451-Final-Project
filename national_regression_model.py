@@ -36,7 +36,7 @@ covid_data_directory = 'aggregated_data/result.csv/part-*'
 covid_data = sqlContext.read.format('com.databricks.spark.csv')\
   .options(header='true', inferschema='true').load(covid_data_directory)
 
-train_df = covid_data.filter(covid_data.numconfirmed > 0)
+train_df = covid_data.filter(covid_data.date > 0)
 
 # change train_df type
 train_df = train_df.withColumn("population", train_df["population"].cast(FloatType()))
@@ -45,34 +45,26 @@ train_df = train_df.withColumn("median_age", train_df["median_age"].cast(FloatTy
 train_df = train_df.withColumn("median_age_Scaled", train_df["median_age_Scaled"].cast(FloatType()))
 train_df.show()
 
-
+RMSE_list = []
+R2_list = []
 def gradient_model_generator(code, train_df, test_df):
 
   def flatten_features(x):
     f = x.features
     #print(code, f[0], f[1], f[2])
-    return (int(math.exp(x.log_numconfirmed)), int(math.exp(x.prediction)), name_map.get(int(code)), int(f[0]), int(f[1]), float(f[2]), float(f[3]))
+    return (x.numconfirmed, int(x.prediction), name_map.get(int(code)), int(math.exp(f[0])), int(f[1]), float(f[2]), float(f[3]))
 
-  #gbt = GBTRegressor(featuresCol = 'features', labelCol='numconfirmed', maxIter=10)
-  #gbt_model = gbt.fit(train_df)
-
-  lr = LinearRegression(featuresCol = 'features', labelCol='log_numconfirmed', maxIter=10, regParam=0.3, elasticNetParam=0.8)
+  lr = LinearRegression(featuresCol = 'features', labelCol='numconfirmed', maxIter=10, regParam=0.3, elasticNetParam=0.8)
   lr_model = lr.fit(province_train_df)
   print("Coefficients: " + str(lr_model.coefficients))
   print("Intercept: " + str(lr_model.intercept))
 
   trainingSummary = lr_model.summary
-  print("RMSE: %f" % trainingSummary.rootMeanSquaredError)
-  print("r2: %f" % trainingSummary.r2)
+  RMSE_list.append(trainingSummary.rootMeanSquaredError)
+  R2_list.append(trainingSummary.r2)
 
   predictions = lr_model.transform(test_df)
 
-  #predictions = gbt_model.transform(test_df)
-
-  # gbt_evaluator = RegressionEvaluator(
-  #     labelCol="numconfirmed", predictionCol="prediction", metricName="rmse")
-  # rmse = gbt_evaluator.evaluate(predictions)
-  # print("Root Mean Squared Error (RMSE) on test data = %g" % rmse)
   predictions = predictions.rdd.map(flatten_features)
   return predictions
 
@@ -88,11 +80,12 @@ df = spark.createDataFrame([], schema=cSchema)
 # iterate over every province's data
 for code in name_map.keys():
   province_train_df = train_df.filter(train_df.geo_code == code)
-  province_train_df = province_train_df.withColumn("log_numconfirmed", log(col('numconfirmed').cast(FloatType())))
+
   #province_test_df = test_df.filter(test_df.geo_code == code)
 
   if not len(province_train_df.head(1)) == 0:
-    # population_train_df = province_train_df.withColumn("log_date", province_train_df["log_date"].cast(FloatType()))
+    province_train_df = province_train_df.withColumn("log_date", log(col('date')))
+    population_train_df = province_train_df.withColumn("log_date", province_train_df["log_date"].cast(FloatType()))
 
     my_window = Window.partitionBy().orderBy("date")
     province_train_df = province_train_df.withColumn("prev_num_tested", F.lag(province_train_df.numtested).over(my_window))
@@ -115,7 +108,7 @@ for code in name_map.keys():
     prev_num_tested = max_num_tested
     for i in range(1, 42):
       numtested = int(max_num_tested + i * median_num_tested)
-      data = [(code, max_date + i, 0, numtested, median_age, population, median_age_scaled, population_scaled, float(0), prev_num_tested, int(median_num_tested))]
+      data = [(code, max_date + i, 0, numtested, median_age, population, median_age_scaled, population_scaled, float(math.log(max_date + i)), prev_num_tested, int(median_num_tested))]
       data_rdd = sc.parallelize(data)
       prev_num_tested = numtested
       print(province_train_df.schema)
@@ -125,13 +118,13 @@ for code in name_map.keys():
     province_test_df.show()
 
 
-    vectorAssembler = VectorAssembler(inputCols=['date','numtested', 'median_age_Scaled', 'population_Scaled'], outputCol = 'features')
+    vectorAssembler = VectorAssembler(inputCols=['log_date','numtested', 'median_age_Scaled', 'population_Scaled'], outputCol = 'features')
     
     province_train_df = vectorAssembler.transform(province_train_df)
-    province_train_df = province_train_df.select(['features', 'log_numconfirmed'])
+    province_train_df = province_train_df.select(['features', 'numconfirmed'])
 
     province_test_df = vectorAssembler.transform(province_test_df)
-    province_test_df = province_test_df.select(['features', 'log_numconfirmed'])
+    province_test_df = province_test_df.select(['features', 'numconfirmed'])
 
     province_train_df.show()
     province_test_df.show()
@@ -141,7 +134,7 @@ for code in name_map.keys():
     result_df.show()
     df = df.unionAll(result_df)
 
-start_date = datetime(2020,4,18)
+start_date = datetime(2020,4,20)
 
 def convert_date_time(x):
   day = int(x.rank)
@@ -155,6 +148,9 @@ df.show()
 final_result = df.rdd.map(convert_date_time)
 
 final = spark.createDataFrame(final_result, ['province', 'prediction', 'date', 'numtested', 'median_age_scaled', 'population_scaled'])
+final.show()
+# print("Average RMSE: %f" % sum(RMSE_list)/len(RMSE_list))
+# print("Average r2: %f" % sum(RMSE_list)/len(R2_list))
 final.repartition(1).write.format("com.databricks.spark.csv").option("header", "true").save(directory_path)
 
 

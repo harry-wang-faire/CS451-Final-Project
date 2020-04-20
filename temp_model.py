@@ -45,7 +45,8 @@ train_df = train_df.withColumn("median_age", train_df["median_age"].cast(FloatTy
 train_df = train_df.withColumn("median_age_Scaled", train_df["median_age_Scaled"].cast(FloatType()))
 train_df.show()
 
-
+RMSE_list = []
+R2_list = []
 def gradient_model_generator(code, train_df, test_df):
 
   def flatten_features(x):
@@ -62,8 +63,8 @@ def gradient_model_generator(code, train_df, test_df):
   print("Intercept: " + str(lr_model.intercept))
 
   trainingSummary = lr_model.summary
-  print("RMSE: %f" % trainingSummary.rootMeanSquaredError)
-  print("r2: %f" % trainingSummary.r2)
+  RMSE_list.append(float(trainingSummary.rootMeanSquaredError))
+  R2_list.append(float(trainingSummary.r2))
 
   predictions = lr_model.transform(test_df)
 
@@ -156,6 +157,9 @@ df.show()
 final_result = df.rdd.map(convert_date_time)
 
 final = spark.createDataFrame(final_result, ['province', 'prediction', 'date', 'numtested', 'median_age_scaled', 'population_scaled'])
+final.show()
+print("Average RMSE: %f" % sum(RMSE_list)/len(RMSE_list))
+print("Average r2: %f" % sum(RMSE_list)/len(R2_list))
 final.repartition(1).write.format("com.databricks.spark.csv").option("header", "true").save(directory_path)
 
 
