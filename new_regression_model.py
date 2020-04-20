@@ -142,7 +142,7 @@ for code in name_map.keys():
     result_df.show()
     df = df.unionAll(result_df)
 
-start_date = datetime(2020,4,18)
+start_date = datetime(2020,4,20)
 
 def convert_date_time(x):
   day = int(x.rank)

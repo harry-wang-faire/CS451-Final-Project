@@ -5,8 +5,8 @@ import os
 import shutil
 from datetime import datetime
 
-geocode_map = {'NWT': 61, 'Ontario': 35, 'NL':10, 'PEI':11, 
-'BC':59, 'Saskatchewan':47, 'Nova Scotia': 12, 'Quebec' : 24, 
+geocode_map = {'Northwest Territories': 61, 'Ontario': 35, 'Newfoundland and Labrador':10, 'Prince Edward Island':11, 
+'British Columbia':59, 'Saskatchewan':47, 'Nova Scotia': 12, 'Quebec' : 24, 
  'Alberta': 48, 'Manitoba': 46, 'New Brunswick': 13, 'Yukon': 60, 'Nunavut':62 }
 
 start_date = datetime(2020,3,15)
